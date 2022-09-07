@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/533494305.svg)](https://zenodo.org/badge/latestdoi/533494305)
+
 # Global Change Analysis Model (GCAM)
 
 The Joint Global Change Research Institute (JGCRI) is the home and
