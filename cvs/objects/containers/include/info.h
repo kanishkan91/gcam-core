@@ -51,13 +51,14 @@
 #include <boost/noncopyable.hpp>
 #include "containers/include/iinfo.h"
 
-#include <map>
+// Can't forward declare because operations are used in template functions.
+#include "util/base/include/hash_map.h"
 #include "util/base/include/xml_helper.h"
 #include "util/base/include/configuration.h"
 #include "util/base/include/definitions.h"
 
 #if GCAM_PARALLEL_ENABLED
-#include <tbb/spin_rw_mutex.h>
+#include <tbb/queuing_rw_mutex.h>
 #endif
 
 class Tabs;
@@ -90,7 +91,7 @@ public:
 
     double getDouble( const std::string& aStringKey, const bool aMustExist ) const;
 
-    const std::string getString( const std::string& aStringKey, const bool aMustExist ) const;
+    const std::string& getString( const std::string& aStringKey, const bool aMustExist ) const;
 
     bool getBooleanHelper( const std::string& aStringKey, bool& aFound ) const;
 
@@ -98,7 +99,7 @@ public:
 
     double getDoubleHelper( const std::string& aStringKey, bool& aFound ) const;
 
-    const std::string getStringHelper( const std::string& aStringKey, bool& aFound ) const;
+    const std::string& getStringHelper( const std::string& aStringKey, bool& aFound ) const;
 
     bool hasValue( const std::string& aStringKey ) const;
 
@@ -110,10 +111,30 @@ private:
 
     std::string mOwnerName;
 
+    /*!
+     * \brief Enum representing possible types of each item.
+     */
+    enum AnyType {
+        //! Boolean
+        eBoolean,
+
+        //! Integer
+        eInteger,
+
+        //! Double
+        eDouble,
+
+        //! String
+        eString
+    };
+
     template<class T> bool setItemValueLocal( const std::string& aStringKey,
+                                              const AnyType aType,
                                               const T& aValue );
 
-    template<class T> T getItemValueLocal( const std::string& aStringKey, bool& aExists ) const;
+    template<class T> const T& getItemValueLocal( const std::string& aStringKey, bool& aExists ) const;
+
+    size_t getInitialSize() const;
 
     void printItemNotFoundWarning( const std::string& aStringKey ) const;
 
@@ -125,15 +146,18 @@ private:
                                       std::ostream& aOut,
                                       Tabs* aTabs ) const;
 
+    //! Type of the item stored as the value in the storage map.
+    typedef std::pair<AnyType, boost::any> ValueType;
+
     //! Type of the internal storage map.
-    typedef std::map<const std::string, boost::any> InfoMap;
+    typedef HashMap<const std::string, ValueType> InfoMap;
 
     //! Internal storage mapping item names to item values.
-    InfoMap mInfoMap;
+    std::auto_ptr<InfoMap> mInfoMap;
 #if GCAM_PARALLEL_ENABLED
     // actions that modify mInfoMap MUST obtain a write lock on the info map.
     // Those that merely read it MUST obtain a read lock
-    mutable tbb::spin_rw_mutex mInfoMapMutex;
+    mutable tbb::queuing_rw_mutex mInfoMapMutex;
 #endif
 
     //! A pointer to the parent of this Info object which can be null.
@@ -149,6 +173,7 @@ private:
 * \param aValue The value to be associated with this key. 
 */
 template<class T> bool Info::setItemValueLocal( const std::string& aStringKey,
+                                                const AnyType aType,
                                                 const T& aValue )
 {
     /*! \pre A valid key was passed. */
@@ -163,13 +188,13 @@ template<class T> bool Info::setItemValueLocal( const std::string& aStringKey,
         // obtain read lock
         // XXX FIXME:  We should arrange to release this lock BEFORE we recurse into
         // the mParentInfo->hasValue calls
-        tbb::spin_rw_mutex::scoped_lock readlock(mInfoMapMutex,false);
+        tbb::queuing_rw_mutex::scoped_lock readlock(mInfoMapMutex,false);
 #endif
-        InfoMap::const_iterator curr = mInfoMap.find( aStringKey );
-        if( curr != mInfoMap.end() ){
+        InfoMap::const_iterator curr = mInfoMap->find( aStringKey );
+        if( curr != mInfoMap->end() ){
             // Check that the types match.
             try {
-                boost::any_cast<T>( curr->second );
+                boost::any_cast<T>( curr->second.second );
             }
             catch( boost::bad_any_cast ){
                 printBadCastWarning( aStringKey, true );
@@ -183,10 +208,10 @@ template<class T> bool Info::setItemValueLocal( const std::string& aStringKey,
 
 #if GCAM_PARALLEL_ENABLED
     // acquire a write lock for updating the infomap
-    tbb::spin_rw_mutex::scoped_lock writelock(mInfoMapMutex, true);
+    tbb::queuing_rw_mutex::scoped_lock writelock(mInfoMapMutex, true);
 #endif
     // Add the value regardless of whether a warning was printed.
-    mInfoMap[ aStringKey ] = boost::any( aValue );
+    mInfoMap->insert( std::make_pair( aStringKey, std::make_pair( aType, boost::any( aValue ) ) ) );
     return true;
 }
 
@@ -207,7 +232,7 @@ template<class T> bool Info::setItemValueLocal( const std::string& aStringKey,
 *          in the string object's malloc call.
 */
 template<class T>
-T Info::getItemValueLocal( const std::string& aStringKey,
+const T& Info::getItemValueLocal( const std::string& aStringKey,
                                  bool& aExists ) const
 {
     /*! \pre A valid key was passed. */
@@ -215,17 +240,29 @@ T Info::getItemValueLocal( const std::string& aStringKey,
 
 #if GCAM_PARALLEL_ENABLED
     // read lock for reading the map
-    tbb::spin_rw_mutex::scoped_lock readlock(mInfoMapMutex, false);
+    tbb::queuing_rw_mutex::scoped_lock readlock(mInfoMapMutex, false);
 #endif
     // Check for the value.
-    InfoMap::const_iterator curr = mInfoMap.find( aStringKey );
-    if( curr != mInfoMap.end() ){
+    InfoMap::const_iterator curr = mInfoMap->find( aStringKey );
+    if( curr != mInfoMap->end() ){
         aExists = true;
         // Attempt to set the return value to the found value. This requires
         // converting the data from the actual type to the requested type.
         try {
-            const T valp = boost::any_cast<T>( curr->second );
-            return valp;
+            // NB: By my reading of the boost docs, the pointer version of
+            // any_cast() used below will never throw an exception, so this
+            // try block is useless.  The docs don't say what WILL happen if
+            // the cast fails in the pointer version, but I'm assuming it
+            // returns a null pointer.  Thus, I've added a test that replicates
+            // the exception behavior in the event of a null pointer return.
+            // I've also left the try-catch in place, in case there are some
+            // versions of the boost libs that actually do throw an exception
+            // for the pointer version of the cast.
+            const T *valp = boost::any_cast<T>( &curr->second.second );
+            if(valp)
+                return *valp;
+            else
+                printBadCastWarning(aStringKey, false);
         }
         // Catch bad data conversions and print an error.
         // See note within the try-block

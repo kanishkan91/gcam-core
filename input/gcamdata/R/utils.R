@@ -321,13 +321,13 @@ save_chunkdata <- function(chunkdata, write_inputs = FALSE, create_dirs = FALSE,
   }
 
   for(cn in names(chunkdata)) {
-    cd <- chunkdata[[cn]]
+    cd <- get_data(chunkdata, cn)
     if(is.null(cd)) next   # optional file that wasn't found
 
     if(FLAG_XML %in% get_flags(cd)) {
       if(write_xml) {
         # TODO: worry about absolute paths?
-        cd <- set_xml_file_helper(cd, file.path(xml_dir, cd$xml_file))
+        cd$xml_file <- file.path(xml_dir, cd$xml_file)
         run_xml_conversion(cd)
       }
     } else if(write_outputs) {
@@ -389,12 +389,11 @@ find_chunks <- function(pattern = "^module_[a-zA-Z\\.]*_.*$", include_disabled =
 #' chunk_inputs
 #'
 #' @param chunks A character vector of chunks names
-#' @param call_flag Flag to look for in inputs
 #' @return A tibble with columns 'name' (chunk name), 'input' (name of data),
 #' 'file_file' (whether object is read from a file), and 'optional' (whether
 #' the object is optional or not).
 #' @export
-chunk_inputs <- function(chunks = find_chunks()$name, call_flag = driver.DECLARE_INPUTS) {
+chunk_inputs <- function(chunks = find_chunks()$name) {
   assertthat::assert_that(is.character(chunks))
 
   # Get list of data required by each chunk
@@ -403,7 +402,7 @@ chunk_inputs <- function(chunks = find_chunks()$name, call_flag = driver.DECLARE
   from_files <- logical()
   optionals <- logical()
   for(ch in chunks) {
-    cl <- call(ch, call_flag)
+    cl <- call(ch, driver.DECLARE_INPUTS)
     reqdata <- eval(cl)
 
     # Chunks mark their file inputs specially, using vector names
@@ -442,18 +441,17 @@ inputs_of <- function(chunks) {
 #' List all chunk outputs.
 #'
 #' @param chunks A character vector of chunks names
-#' @param call_flag Flag to look for in outputs
 #' @return A tibble with columns 'name' (chunk name), 'output' (name of data),
 #' and 'to_xml' (whether or not this is an XML structure).
 #' @export
-chunk_outputs <- function(chunks = find_chunks()$name, call_flag = driver.DECLARE_OUTPUTS) {
+chunk_outputs <- function(chunks = find_chunks()$name) {
   assertthat::assert_that(is.character(chunks))
 
   chunk_names <- character()
   outputs <- character()
   to_xmls <- logical()
   for(ch in chunks) {
-    cl <- call(ch, call_flag)
+    cl <- call(ch, driver.DECLARE_OUTPUTS)
     reqdata <- eval(cl)
 
     # Chunks mark any XML file outputs using vector names

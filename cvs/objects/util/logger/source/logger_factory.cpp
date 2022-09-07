@@ -118,7 +118,6 @@ void LoggerFactory::cleanUp() {
 		logIter->second->close();
 		delete logIter->second;
 	}
-    mLoggers.clear();
 }
 
 /*! \brief Writes out the LoggerFactory to an XML file. 

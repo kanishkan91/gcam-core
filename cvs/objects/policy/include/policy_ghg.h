@@ -55,7 +55,6 @@
 #include "util/base/include/data_definition_util.h"
 
 // Need to forward declare the subclasses as well.
-class PolicyPortfolioStandard;
 class LinkedGHGPolicy;
 
 /*! 
@@ -85,7 +84,7 @@ protected:
         /* Declare all subclasses of GHGPolicy to allow automatic traversal of the
          * hierarchy under introspection.
          */
-        DEFINE_SUBCLASS_FAMILY( GHGPolicy, PolicyPortfolioStandard, LinkedGHGPolicy ),
+        DEFINE_SUBCLASS_FAMILY( GHGPolicy, LinkedGHGPolicy ),
 
         //! GHG name
         DEFINE_VARIABLE( SIMPLE, "name", mName, std::string ),

@@ -42,15 +42,7 @@ module_gcamusa_L232.industry_USA <- function(command, ...) {
              "L232.StubTechInterp_ind",
              "L232.PerCapitaBased_ind",
              "L232.PriceElasticity_ind",
-             "L232.IncomeElasticity_ind_gcam3",
-             "L2323.Supplysector_iron_steel",
-             "L2324.Supplysector_Off_road",
-             "L2325.Supplysector_chemical",
-             "L2326.Supplysector_aluminum",
-             "L2323.PerCapitaBased_iron_steel",
-             "L2324.PerCapitaBased_Off_road",
-             "L2325.PerCapitaBased_chemical",
-             "L2326.PerCapitaBased_aluminum"))
+             "L232.IncomeElasticity_ind_gcam3"))
   } else if(command == driver.DECLARE_OUTPUTS) {
     return(c("L232.DeleteSupplysector_USAind",
              "L232.DeleteFinalDemand_USAind",
@@ -103,14 +95,7 @@ module_gcamusa_L232.industry_USA <- function(command, ...) {
     L232.PerCapitaBased_ind <- get_data(all_data, "L232.PerCapitaBased_ind", strip_attributes = TRUE)
     L232.PriceElasticity_ind <- get_data(all_data, "L232.PriceElasticity_ind", strip_attributes = TRUE)
     L232.IncomeElasticity_ind_gcam3 <- get_data(all_data, "L232.IncomeElasticity_ind_gcam3", strip_attributes = TRUE)
-    L2323.Supplysector_iron_steel <- get_data(all_data, "L2323.Supplysector_iron_steel", strip_attributes = TRUE)
-    L2324.Supplysector_Off_road <- get_data(all_data, "L2324.Supplysector_Off_road", strip_attributes = TRUE)
-    L2325.Supplysector_chemical <- get_data(all_data, "L2325.Supplysector_chemical", strip_attributes = TRUE)
-    L2326.Supplysector_aluminum <- get_data(all_data, "L2326.Supplysector_aluminum", strip_attributes = TRUE)
-    L2323.PerCapitaBased_iron_steel <- get_data(all_data, "L2323.PerCapitaBased_iron_steel", strip_attributes = TRUE)
-    L2324.PerCapitaBased_Off_road <- get_data(all_data, "L2324.PerCapitaBased_Off_road", strip_attributes = TRUE)
-    L2325.PerCapitaBased_chemical <- get_data(all_data, "L2325.PerCapitaBased_chemical", strip_attributes = TRUE)
-    L2326.PerCapitaBased_aluminum <- get_data(all_data, "L2326.PerCapitaBased_aluminum", strip_attributes = TRUE)
+
 
     # ===================================================
     # Data Processing
@@ -121,10 +106,6 @@ module_gcamusa_L232.industry_USA <- function(command, ...) {
 
     # delete industry sectors in the USA region (energy-final-demands and supplysectors)
     L232.Supplysector_ind %>%
-      bind_rows(L2323.Supplysector_iron_steel,
-                L2324.Supplysector_Off_road,
-                L2325.Supplysector_chemical,
-                L2326.Supplysector_aluminum) %>%
       mutate(region = region) %>% # strip attributes from object
       filter(region == gcam.USA_REGION) %>%
       select(LEVEL2_DATA_NAMES[["DeleteSupplysector"]]) ->
@@ -132,10 +113,6 @@ module_gcamusa_L232.industry_USA <- function(command, ...) {
 
     # deleting energy final demand sectors in the full USA region")
     L232.PerCapitaBased_ind %>%
-      bind_rows(L2323.PerCapitaBased_iron_steel,
-                L2324.PerCapitaBased_Off_road,
-                L2325.PerCapitaBased_chemical,
-                L2326.PerCapitaBased_aluminum) %>%
       mutate(region = region) %>% # strip attributes from object
       filter(region == gcam.USA_REGION) %>%
       select(LEVEL2_DATA_NAMES[["DeleteFinalDemand"]]) ->
@@ -254,9 +231,9 @@ module_gcamusa_L232.industry_USA <- function(command, ...) {
       group_by(region, year) %>%
       summarise(calOutputValue = sum(calOutputValue)) %>% ungroup %>%
       # ^^ aggregate to get output of industrial sector in each region
-      mutate(supplysector = "other industry",
-             subsector = "other industry",
-             stub.technology = "other industry",
+      mutate(supplysector = "industry",
+             subsector = "industry",
+             stub.technology = "industry",
              share.weight.year = year,
              subs.share.weight = if_else(calOutputValue > 0, 1, 0),
              tech.share.weight = subs.share.weight) %>%
@@ -274,9 +251,9 @@ module_gcamusa_L232.industry_USA <- function(command, ...) {
       mutate(coefficient = round(calOutputValue / output_tot, energy.DIGITS_COEFFICIENT)) %>%
       # ^^ get coefficient
       rename(minicam.energy.input = supplysector) %>%
-      mutate(supplysector = "other industry",
-             subsector = "other industry",
-             stub.technology = "other industry",
+      mutate(supplysector = "industry",
+             subsector = "industry",
+             stub.technology = "industry",
              market.name = region) ->
       L232.StubTechCoef_industry_USA_base
     # ^^ covers only base years
@@ -305,10 +282,9 @@ module_gcamusa_L232.industry_USA <- function(command, ...) {
       select(LEVEL2_DATA_NAMES[["StubTechMarket"]]) %>%
       left_join_error_no_match(states_subregions %>% select(state, grid_region), by = c("region" = "state")) %>%
       mutate(market.name = if_else(minicam.energy.input %in% gcamusa.REGIONAL_FUEL_MARKETS,
-                                   grid_region, market.name),
-             market.name = if_else(minicam.energy.input %in% gcamusa.STATE_FUEL_MARKETS,
-                                   region, market.name)) %>%
-      select(-grid_region) ->
+                                   grid_region, market.name)) %>%
+      select(-grid_region) %>%
+      mutate(market.name = if_else(grepl("elect_td", minicam.energy.input), region, market.name)) ->
       L232.StubTechMarket_ind_USA  ## OUTPUT
 
     # markets for the cogenerated electricity (secondary output)
@@ -348,11 +324,7 @@ module_gcamusa_L232.industry_USA <- function(command, ...) {
       add_units("NA") %>%
       add_comments("Generated by deselecting industry sectors from input") %>%
       add_legacy_name("L232.DeleteSupplysector_USAind") %>%
-      add_precursors("L232.Supplysector_ind",
-                     "L2323.Supplysector_iron_steel",
-                     "L2324.Supplysector_Off_road",
-                     "L2325.Supplysector_chemical",
-                     "L2326.Supplysector_aluminum") ->
+      add_precursors("L232.Supplysector_ind") ->
       L232.DeleteSupplysector_USAind
 
     L232.DeleteFinalDemand_USAind %>%
@@ -360,11 +332,7 @@ module_gcamusa_L232.industry_USA <- function(command, ...) {
       add_units("NA") %>%
       add_comments("Generated by deselecting final demand sectors") %>%
       add_legacy_name("L232.DeleteFinalDemand_USAind") %>%
-      add_precursors("L232.PerCapitaBased_ind",
-                     "L2323.PerCapitaBased_iron_steel",
-                     "L2324.PerCapitaBased_Off_road",
-                     "L2325.PerCapitaBased_chemical",
-                     "L2326.PerCapitaBased_aluminum") ->
+      add_precursors("L232.PerCapitaBased_ind") ->
       L232.DeleteFinalDemand_USAind
 
     L232.StubTechCalInput_indenergy_USA %>%

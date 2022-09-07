@@ -160,7 +160,7 @@ module_aglu_LB123.LC_R_MgdPastFor_Yh_GLU <- function(command, ...) {
      L121.CarbonContent_kgm2_R_LT_GLU %>%
       filter(Land_Type == "Forest") %>%
       # Calculate veg mass of each GLU based on above-ground carbon content of each GLU
-      mutate(VegVolume_m3m2 = (veg_c*aglu.CVEG_MULT_UNMGDPAST_MGDPAST) / aglu.AVG_WOOD_DENSITY_KGCM3,
+      mutate(VegVolume_m3m2 = veg_c / aglu.AVG_WOOD_DENSITY_KGCM3,
              # Carbon densities are divided by mature age to get net primary productivity
              Yield_m3m2 = VegVolume_m3m2 / `mature age`) ->
       L123.For_Yield_m3m2_R_GLU

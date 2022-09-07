@@ -70,7 +70,6 @@ class World;
  */
 class LogEDFun : public VecFVec
 {
-    friend class SolutionDebugger;
   // information needed to compute ED(p)
   
   //!

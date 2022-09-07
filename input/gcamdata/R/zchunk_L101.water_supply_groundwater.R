@@ -39,8 +39,7 @@ module_water_L101.water_supply_groundwater <- function(command, ...) {
       lower_cost <- upper_cost <-
       grade <- elec_EJ <- elec_coef <- Superwell_country <-
       GCAM_region_ID <- minNEcost <- available <-
-      minNEcost_bilUSD <- maxNEcost_bilUSD <- maxNEcost <-
-      lower <- upper <- range_mult <- NULL
+      minNEcost_bilUSD <- maxNEcost_bilUSD <- maxNEcost <- NULL
 
     all_data <- list(...)[[1]]
 

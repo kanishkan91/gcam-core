@@ -48,6 +48,9 @@ main_dir : libgcam.a
 	@date
 
 
+install_hector:
+	git submodule update --init ../../climate/source/hector
+
 # target for debugging configure.gcam 
 varchk:
 	@echo GCAMLIB_HOME:  $(GCAMLIB_HOME)

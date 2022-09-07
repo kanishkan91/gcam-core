@@ -201,18 +201,11 @@ void ManageStateVariables::collectState() {
     // Take another pass through the Value objects and copy the original data from
     // each one into the corresponding "base" state to initialize it.
     mNumCollected = 0;
-    uint64_t currEncodedId = Value::STATE_COPY_MASK;
     for( auto currValue : mStateValues ) {
-        double realData = Value::convertToDouble(currValue->mBits);
-        currValue->mBits = currEncodedId;
-        currValue->sBaseCentralValue[ mNumCollected ] = realData;
-        if(mNumCollected == Value::ID_MASK) {
-            mainLog.setLevel( ILogger::SEVERE );
-            mainLog << "The number of STATE values exceeded reserved ID space in ManageStateVariables." << endl;
-            abort();
-        }
+        currValue->mIsStateCopy = true;
+        currValue->mCentralValueIndex = mNumCollected;
+        currValue->sBaseCentralValue[ mNumCollected ] = currValue->mValue;
         ++mNumCollected;
-        ++currEncodedId;
     }
     
     // if configured, reset initial state data from a restart file
@@ -246,18 +239,18 @@ void ManageStateVariables::resetState() {
     }
     
 #if DEBUG_STATE
-    uint64_t count = Value::STATE_COPY_MASK;
+    unsigned int count = 0;
 #endif
     for( auto currValue : mStateValues ) {
+        currValue->mIsStateCopy = false;
 #if DEBUG_STATE
-        if( currValue->mBits != count ) {
-            cout << "Reset didn't match " << currValue->mBits << " != " << count << endl;
+        if( currValue->mCentralValueIndex != count ) {
+            cout << "Reset didn't match " << currValue->mCentralValueIndex << " != " << count << endl;
             abort();
         }
         ++count;
 #endif
-        double realValue = currValue->getInternal();
-        currValue->mBits = Value::convertToBits(realValue);
+        currValue->mValue = currValue->sBaseCentralValue[ currValue->mCentralValueIndex ];
     }
 }
 
@@ -335,8 +328,8 @@ void ManageStateVariables::loadRestartFile() {
         abort();
     }
     
-    uint64_t numStatesInRestart;
-    restartFile.read( reinterpret_cast<char*>( &numStatesInRestart ), sizeof( uint64_t ) );
+    size_t numStatesInRestart;
+    restartFile.read( reinterpret_cast<char*>( &numStatesInRestart ), sizeof( size_t ) );
     if( numStatesInRestart != mNumCollected ) {
         ILogger& mainLog = ILogger::getLogger( "main_log" );
         mainLog.setLevel( ILogger::SEVERE );
@@ -387,7 +380,7 @@ void ManageStateVariables::saveRestartFile() {
     
     // first write the total number of entries that should be expected to help with error
     // checking on read in
-    restartFile.write( reinterpret_cast<char*>( &mNumCollected ), sizeof( uint64_t ) );
+    restartFile.write( reinterpret_cast<char*>( &mNumCollected ), sizeof( size_t ) );
     
     // write the entire contents of the "base" state
     restartFile.write( reinterpret_cast<char*>( mStateData[0] ), sizeof( double ) * mNumCollected );
@@ -400,7 +393,7 @@ void ManageStateVariables::saveRestartFile() {
 #if DEBUG_STATE
 void Value::doStateCheck() const {
     const bool isPartialDeriv = scenario->getMarketplace()->mIsDerivativeCalc;
-    if( (mBits & STATE_COPY_MASK) != STATE_COPY_MASK && isPartialDeriv ) {
+    if( !mIsStateCopy && isPartialDeriv ) {
         cout << "Missed one" << endl;
         // use the debugger call stack from here to identify Values that were not
         // marked as STATE but should have been.

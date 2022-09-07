@@ -4,12 +4,10 @@
 \alias{chunk_inputs}
 \title{chunk_inputs}
 \usage{
-chunk_inputs(chunks = find_chunks()$name, call_flag = driver.DECLARE_INPUTS)
+chunk_inputs(chunks = find_chunks()$name)
 }
 \arguments{
 \item{chunks}{A character vector of chunks names}
-
-\item{call_flag}{Flag to look for in inputs}
 }
 \value{
 A tibble with columns 'name' (chunk name), 'input' (name of data),

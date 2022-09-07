@@ -81,7 +81,6 @@ MarketDependencyFinder::~MarketDependencyFinder() {
     delete mTBBGraphGlobal;
     for( CMarketToDepIterator it = mMarketsToDep.begin(); it != mMarketsToDep.end(); ++it ) {
         delete (*it)->mFlowGraph;
-        delete *it;
     }
 #endif
 }

@@ -89,7 +89,6 @@ const string& CO2Emissions::getXMLNameStatic(){
     return XML_NAME;
 }
 
-
 void CO2Emissions::toDebugXMLDerived( const int aPeriod, ostream& aOut, Tabs* aTabs ) const {
 }
 
@@ -189,11 +188,9 @@ double CO2Emissions::calcOutputEmissions( const vector<IOutput*>& aOutputs,
                                           const int aPeriod ) const
 {
     double emissions = 0;
-    assert(aOutputs.size() > 0);
-    const double primaryOutput = aOutputs[ 0 ]->getPhysicalOutput( aPeriod );
     for( unsigned int i = 0; i < aOutputs.size(); ++i ){
-        emissions += aOutputs[ i ]->getEmissionsPerOutput( getName(), aPeriod)
-            * primaryOutput;
+        emissions += aOutputs[ i ]->getEmissionsPerOutput( getName(), aPeriod )
+            * aOutputs[ i ]->getPhysicalOutput( aPeriod );
     }
     return emissions;
 }
@@ -219,7 +216,6 @@ double CO2Emissions::calcInputCO2Emissions( const vector<IInput*>& aInputs, cons
         totalEmissions += (*input)->getPhysicalDemand( aPeriod )
             * (*input)->getCO2EmissionsCoefficient( getName(), aPeriod );
     }
- 
     return totalEmissions;
 }
 
